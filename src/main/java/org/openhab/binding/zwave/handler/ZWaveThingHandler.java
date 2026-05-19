@@ -12,6 +12,8 @@
  */
 package org.openhab.binding.zwave.handler;
 
+import static org.openhab.binding.zwave.ZWaveBindingConstants.*;
+
 import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -71,6 +73,8 @@ import org.openhab.binding.zwave.internal.protocol.transaction.ZWaveCommandClass
 import org.openhab.core.config.core.Configuration;
 import org.openhab.core.config.core.status.ConfigStatusMessage;
 import org.openhab.core.config.core.validation.ConfigValidationException;
+import org.openhab.core.library.types.DecimalType;
+import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.semantics.SemanticTag;
 import org.openhab.core.semantics.model.DefaultSemanticTags.Equipment;
 import org.openhab.core.thing.Bridge;
@@ -1517,10 +1521,12 @@ public class ZWaveThingHandler extends ConfigStatusThingHandler implements ZWave
                 // channel.dataType);
                 State state = channel.getConverter().handleEvent(channel, event);
                 if (state != null) {
-                    logger.debug("NODE {}: Updating channel state {} to {} [{}]", nodeId, channel.getUID(), state,
+                    ChannelUID channelUID = channel.getUID();
+                    logger.debug("NODE {}: Updating channel state {} to {} [{}]", nodeId, channelUID, state,
                             state.getClass().getSimpleName());
 
-                    updateState(channel.getUID(), state);
+                    updateOnlineStatusDescription(channelUID, state);
+                    updateState(channelUID, state);
                 }
             }
 
@@ -2390,6 +2396,44 @@ public class ZWaveThingHandler extends ConfigStatusThingHandler implements ZWave
 
         if (equipmentTag != null) {
             updateThing(editThing().withSemanticEquipmentTag(equipmentTag).build());
+        }
+    }
+
+    /**
+     * Update thing status description based on the given battery low state. If the battery is low and the description
+     * is null, then the description is set to the respective battery low translatable text. If the battery is OK, and
+     * the description is the low battery translatable text, then the description message is cleared. If the thing is
+     * not ONLINE, or if it does not have a battery low channel then the description is not updated. If the battery
+     * state is a DecimalType (percentage) level then convert it to a battery OK / not OL state. NOTE: this method
+     * only updates the status description if the thing does not already have a status description for a different
+     * issue.
+     */
+    private void updateOnlineStatusDescription(ChannelUID channelUID, State batteryState) {
+        ThingStatusInfo statusInfo = getThing().getStatusInfo();
+        if (statusInfo.getStatus() == ThingStatus.ONLINE) {
+            String channelId = channelUID.getId();
+            State batteryLowState;
+
+            if (CHANNEL_ID_BATTERY_LEVEL.equals(channelId) && batteryState instanceof DecimalType batteryLevel) {
+                batteryLowState = OnOffType.from(batteryLevel.doubleValue() <= BATTERY_LOW_LEVEL_PERCENT);
+            } else if (CHANNEL_ID_BATTERY_ALARM.equals(channelId)) {
+                batteryLowState = batteryState;
+            } else {
+                return; // not a battery channel so return
+            }
+            String description = statusInfo.getDescription();
+
+            // if battery is OK and description is the low battery text then clear the description
+            if (OnOffType.OFF.equals(batteryLowState) && TEXT_ONLINE_BATTERY_LOW.equals(description)) {
+                updateStatus(statusInfo.getStatus(), statusInfo.getStatusDetail());
+                return;
+            }
+
+            // if battery is low and description is null then apply the low battery text
+            if (OnOffType.ON.equals(batteryLowState) && description == null) {
+                updateStatus(statusInfo.getStatus(), statusInfo.getStatusDetail(), TEXT_ONLINE_BATTERY_LOW);
+                return;
+            }
         }
     }
 }

@@ -151,4 +151,14 @@ public class ZWaveBindingConstants {
     public final static String GROUP_CONTROLLER = "controller";
 
     public final static Set<ThingTypeUID> SUPPORTED_BRIDGE_TYPES_UIDS = Collections.singleton(CONTROLLER_SERIAL);
+
+    // i18n translatable text keys
+    public static final String TEXT_ONLINE_BATTERY_LOW = "@text/online.battery-low";
+
+    // battery channel Ids
+    public static final String CHANNEL_ID_BATTERY_ALARM = "alarm_battery";
+    public static final String CHANNEL_ID_BATTERY_LEVEL = "battery-level";
+
+    // battery level threshold for low battery alarm
+    public static final int BATTERY_LOW_LEVEL_PERCENT = 10;
 }
